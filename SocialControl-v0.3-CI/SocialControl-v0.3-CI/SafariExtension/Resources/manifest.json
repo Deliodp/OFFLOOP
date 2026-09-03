@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "SocialControl",
+  "version": "0.2.0",
+  "description": "Hides Instagram Reels, YouTube Shorts and optionally reduces YouTube ads.",
+  "permissions": [
+    "nativeMessaging",
+    "declarativeNetRequest"
+  ],
+  "host_permissions": [
+    "*://*.instagram.com/*",
+    "*://*.youtube.com/*",
+    "*://*.doubleclick.net/*"
+  ],
+  "background": {
+    "scripts": [
+      "background.js"
+    ]
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.instagram.com/*",
+        "*://*.youtube.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_start"
+    }
+  ],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "youtube_ads",
+        "enabled": false,
+        "path": "rules/youtube_ads.json"
+      }
+    ]
+  }
+}
