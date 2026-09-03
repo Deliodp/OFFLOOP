@@ -1,0 +1,38 @@
+name: iOS CI
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 25
+
+    steps:
+      - name: Descargar proyecto
+        uses: actions/checkout@v4
+
+      - name: Ver versión de Xcode
+        run: xcodebuild -version
+
+      - name: Instalar XcodeGen
+        run: brew install xcodegen
+
+      - name: Generar proyecto Xcode
+        run: xcodegen generate
+
+      - name: Ver proyectos y schemes
+        run: xcodebuild -list -project SocialControl.xcodeproj
+
+      - name: Compilar para iPhone Simulator
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project SocialControl.xcodeproj \
+            -scheme SocialControl \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            clean build
