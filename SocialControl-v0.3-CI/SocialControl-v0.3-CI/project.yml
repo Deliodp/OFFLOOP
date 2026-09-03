@@ -66,6 +66,20 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.yourcompany.SocialControl.Report
+        PRODUCT_NAME: SocialControlReport
+        INFOPLIST_FILE: DeviceActivityReportExtension/Info.plist
+        CODE_SIGN_ENTITLEMENTS: DeviceActivityReportExtension/Report.entitlements
+        GENERATE_INFOPLIST_FILE: NO
+        SKIP_INSTALL: YES
+        APPLICATION_EXTENSION_API_ONLY: YES
+
+    sources:
+      - path: DeviceActivityReportExtension
+      - path: Shared
+
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.yourcompany.SocialControl.Report
         INFOPLIST_FILE: DeviceActivityReportExtension/Info.plist
         CODE_SIGN_ENTITLEMENTS: DeviceActivityReportExtension/Report.entitlements
         SKIP_INSTALL: YES
