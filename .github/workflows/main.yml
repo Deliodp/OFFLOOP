@@ -9,6 +9,10 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 25
 
+    defaults:
+      run:
+        working-directory: SocialControl-v0.3-CI/SocialControl-v0.3-CI
+
     steps:
       - name: Descargar proyecto
         uses: actions/checkout@v4
