@@ -1,4 +1,5 @@
 name: SocialControl
+
 options:
   bundleIdPrefix: com.yourcompany
   deploymentTarget:
@@ -7,35 +8,44 @@ options:
 settings:
   base:
     SWIFT_VERSION: 5.0
-    MARKETING_VERSION: 0.2.0
-    CURRENT_PROJECT_VERSION: 2
+    MARKETING_VERSION: 0.3.0
+    CURRENT_PROJECT_VERSION: 3
 
 targets:
+
   SocialControl:
     type: application
     platform: iOS
+
     sources:
       - path: App
       - path: Shared
+
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.yourcompany.SocialControl
         INFOPLIST_FILE: App/Info.plist
         CODE_SIGN_ENTITLEMENTS: App/App.entitlements
+
     dependencies:
       - target: SocialControlSafari
         embed: true
+
       - target: SocialControlReport
         embed: true
+
 
   SocialControlSafari:
     type: app-extension
     platform: iOS
+
     sources:
       - path: SafariExtension
       - path: Shared
+
     resources:
       - path: SafariExtension/Resources
+
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.yourcompany.SocialControl.Safari
@@ -44,12 +54,15 @@ targets:
         SKIP_INSTALL: YES
         APPLICATION_EXTENSION_API_ONLY: YES
 
+
   SocialControlReport:
     type: app-extension
     platform: iOS
+
     sources:
       - path: DeviceActivityReportExtension
       - path: Shared
+
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.yourcompany.SocialControl.Report
@@ -62,10 +75,13 @@ targets:
   SocialControlTests:
     type: bundle.unit-test
     platform: iOS
+
     sources:
       - path: Tests/CoreTests
+
     dependencies:
       - target: SocialControl
+
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.yourcompany.SocialControlTests
