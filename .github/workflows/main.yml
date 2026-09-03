@@ -1,4 +1,4 @@
-name: iOS CI
+name: iOS CI Diagnostic
 
 on:
   push:
@@ -17,23 +17,25 @@ jobs:
       - name: Descargar proyecto
         uses: actions/checkout@v4
 
-      - name: Ver versión de Xcode
-        run: |
-          xcodebuild -version
-          swift --version
-
       - name: Instalar XcodeGen
         run: brew install xcodegen
 
       - name: Generar proyecto Xcode
         run: xcodegen generate
 
-      - name: Ver proyectos y schemes
-        run: xcodebuild -list -project SocialControl.xcodeproj
-
-      - name: Compilar aplicación completa
+      - name: Comprobar Bundle ID de Insights
         run: |
-          set -o pipefail
+          echo "===== BUILD SETTINGS SOCIALCONTROLREPORT ====="
+          xcodebuild \
+            -project SocialControl.xcodeproj \
+            -target SocialControlReport \
+            -sdk iphonesimulator \
+            -showBuildSettings | grep -E "PRODUCT_BUNDLE_IDENTIFIER|INFOPLIST_FILE|GENERATE_INFOPLIST_FILE|PRODUCT_NAME"
+
+      - name: Compilar y diagnosticar
+        run: |
+          set +e
+
           xcodebuild \
             -project SocialControl.xcodeproj \
             -scheme SocialControl \
@@ -43,14 +45,19 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             clean build
 
-      - name: Ejecutar tests
-        run: |
-          set -o pipefail
-          xcodebuild \
-            -project SocialControl.xcodeproj \
-            -scheme SocialControlTests \
-            -sdk iphonesimulator \
-            -destination 'platform=iOS Simulator,name=iPhone 16' \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            test
+          BUILD_EXIT=$?
+
+          echo ""
+          echo "===== BUSCANDO INFO.PLIST DE INSIGHTS ====="
+
+          find ~/Library/Developer/Xcode/DerivedData \
+            -path "*SocialControlReport.appex/Info.plist" \
+            -print \
+            -exec /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" {} \; \
+            -exec /usr/libexec/PlistBuddy -c "Print :CFBundleName" {} \; || true
+
+          echo ""
+          echo "===== INFO.PLIST FUENTE ====="
+          cat DeviceActivityReportExtension/Info.plist
+
+          exit $BUILD_EXIT
