@@ -1,11 +1,11 @@
-name: iOS CI Diagnostic
+name: iOS Simulator Screenshot
 
 on:
   push:
   workflow_dispatch:
 
 jobs:
-  build:
+  simulator:
     runs-on: macos-15
     timeout-minutes: 30
 
@@ -20,44 +20,44 @@ jobs:
       - name: Instalar XcodeGen
         run: brew install xcodegen
 
-      - name: Generar proyecto Xcode
+      - name: Generar proyecto
         run: xcodegen generate
 
-      - name: Comprobar Bundle ID de Insights
+      - name: Compilar app para simulador
         run: |
-          echo "===== BUILD SETTINGS SOCIALCONTROLREPORT ====="
-          xcodebuild \
-            -project SocialControl.xcodeproj \
-            -target SocialControlReport \
-            -sdk iphonesimulator \
-            -showBuildSettings | grep -E "PRODUCT_BUNDLE_IDENTIFIER|INFOPLIST_FILE|GENERATE_INFOPLIST_FILE|PRODUCT_NAME"
-
-      - name: Compilar y diagnosticar
-        run: |
-          set +e
-
           xcodebuild \
             -project SocialControl.xcodeproj \
             -scheme SocialControl \
             -sdk iphonesimulator \
-            -destination 'generic/platform=iOS Simulator' \
+            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -derivedDataPath DerivedData \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             clean build
 
-          BUILD_EXIT=$?
+      - name: Arrancar simulador
+        run: |
+          xcrun simctl boot "iPhone 16" || true
+          open -a Simulator
+          xcrun simctl bootstatus "iPhone 16" -b
 
-          echo ""
-          echo "===== BUSCANDO INFO.PLIST DE INSIGHTS ====="
+      - name: Instalar app
+        run: |
+          APP_PATH=$(find DerivedData/Build/Products/Debug-iphonesimulator -name "SocialControl.app" | head -1)
+          echo "APP_PATH=$APP_PATH"
+          xcrun simctl install booted "$APP_PATH"
 
-          find ~/Library/Developer/Xcode/DerivedData \
-            -path "*SocialControlReport.appex/Info.plist" \
-            -print \
-            -exec /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" {} \; \
-            -exec /usr/libexec/PlistBuddy -c "Print :CFBundleName" {} \; || true
+      - name: Lanzar app
+        run: |
+          xcrun simctl launch booted com.yourcompany.SocialControl
+          sleep 5
 
-          echo ""
-          echo "===== INFO.PLIST FUENTE ====="
-          cat DeviceActivityReportExtension/Info.plist
+      - name: Hacer screenshot
+        run: |
+          xcrun simctl io booted screenshot screenshot.png
 
-          exit $BUILD_EXIT
+      - name: Subir screenshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-screenshot
+          path: SocialControl-v0.3-CI/SocialControl-v0.3-CI/screenshot.png
