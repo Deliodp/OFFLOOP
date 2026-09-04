@@ -5,17 +5,18 @@ final class YouTubeAdBlocker {
 
     static let shared = YouTubeAdBlocker()
 
-    private let identifier = "OFFLOOP.YouTubeAds.v2"
+    private let identifier = "OFFLOOP.YouTubeAds.v3"
 
     /*
      OFFLOOP YouTube Ad Shield
 
-     Principio:
-     - Bloquear endpoints publicitarios conocidos.
-     - NO bloquear googlevideo.com de forma global.
-     - NO bloquear youtubei/v1/player globalmente.
-     - Preservar reproducción normal, login, búsqueda,
-       comentarios y recomendaciones.
+     Objetivo:
+     1. Bloquear peticiones publicitarias conocidas.
+     2. Eliminar elementos publicitarios de la interfaz.
+     3. Pulsar automáticamente "Skip Ad" cuando YouTube
+        ofrece ese botón.
+     4. NO bloquear googlevideo.com de forma global,
+        porque podríamos romper los vídeos normales.
     */
 
     private let rulesJSON = """
@@ -96,49 +97,76 @@ final class YouTubeAdBlocker {
 
     private init() {}
 
+
     // MARK: - PUBLIC
 
     func attachContentRules(
         to controller: WKUserContentController
     ) async {
 
+        /*
+         Ponemos siempre la capa DOM.
+
+         Así, incluso si WebKit no pudiera cargar
+         las reglas de red, seguimos teniendo
+         protección cosmética.
+        */
+
+        addCosmeticScript(
+            to: controller
+        )
+
         do {
 
-            let list = try await contentRuleList()
+            let list =
+                try await contentRuleList()
 
             controller.add(list)
-
-            addCosmeticScript(to: controller)
 
         } catch {
 
             /*
-             Aunque la lista de red no pudiera compilar,
-             mantenemos la capa cosmética.
+             Fail-safe:
 
-             Preferimos que YouTube funcione con algún anuncio
-             antes que romper la reproducción.
+             Si falla la lista de bloqueo,
+             NO rompemos YouTube.
+
+             La navegación sigue funcionando
+             usando únicamente la capa DOM.
             */
 
-            addCosmeticScript(to: controller)
+            print(
+                "OFFLOOP Ad Shield: network rules unavailable:",
+                error
+            )
         }
     }
 
 
-    // MARK: - NETWORK BLOCKING
+    // MARK: - CONTENT RULE LIST
 
-    private func contentRuleList() async throws
-        -> WKContentRuleList {
-
-        let store =
-            WKContentRuleListStore.default()
+    private func contentRuleList()
+        async throws -> WKContentRuleList {
 
         /*
-         Primero intentamos reutilizar una versión
-         ya compilada.
+         WKContentRuleListStore.default()
+         puede devolver nil.
 
-         WKContentRuleListStore persiste las listas,
-         así evitamos recompilarlas cada vez.
+         Esta comprobación es precisamente
+         lo que corrige el fallo de compilación.
+        */
+
+        guard let store =
+                WKContentRuleListStore.default()
+        else {
+
+            throw AdBlockError.ruleStoreUnavailable
+        }
+
+
+        /*
+         Primero intentamos recuperar
+         una lista previamente compilada.
         */
 
         if let existing =
@@ -149,11 +177,19 @@ final class YouTubeAdBlocker {
             return existing
         }
 
+
+        /*
+         Si no existe todavía,
+         compilamos las reglas.
+        */
+
         return try await compileRuleList(
             store: store
         )
     }
 
+
+    // MARK: - EXISTING RULES
 
     private func existingRuleList(
         store: WKContentRuleListStore
@@ -172,26 +208,30 @@ final class YouTubeAdBlocker {
                         returning: list
                     )
 
-                } else {
+                    return
+                }
+
+
+                if let error {
 
                     continuation.resume(
-                        throwing:
-                            error ??
-                            NSError(
-                                domain:
-                                    "OFFLOOP.AdBlock",
-                                code: 1,
-                                userInfo: [
-                                    NSLocalizedDescriptionKey:
-                                        "Rule list not found"
-                                ]
-                            )
+                        throwing: error
                     )
+
+                    return
                 }
+
+
+                continuation.resume(
+                    throwing:
+                        AdBlockError.ruleListNotFound
+                )
             }
         }
     }
 
+
+    // MARK: - COMPILE RULES
 
     private func compileRuleList(
         store: WKContentRuleListStore
@@ -212,28 +252,30 @@ final class YouTubeAdBlocker {
                         returning: list
                     )
 
-                } else {
+                    return
+                }
+
+
+                if let error {
 
                     continuation.resume(
-                        throwing:
-                            error ??
-                            NSError(
-                                domain:
-                                    "OFFLOOP.AdBlock",
-                                code: 2,
-                                userInfo: [
-                                    NSLocalizedDescriptionKey:
-                                        "Unable to compile rules"
-                                ]
-                            )
+                        throwing: error
                     )
+
+                    return
                 }
+
+
+                continuation.resume(
+                    throwing:
+                        AdBlockError.ruleCompilationFailed
+                )
             }
         }
     }
 
 
-    // MARK: - COSMETIC / DOM LAYER
+    // MARK: - DOM / COSMETIC LAYER
 
     private func addCosmeticScript(
         to controller: WKUserContentController
@@ -242,6 +284,11 @@ final class YouTubeAdBlocker {
         let script = """
 
         (() => {
+
+          /*
+           Evitamos instalar dos veces
+           el mismo observer.
+          */
 
           if (window.__offloopAdShieldInstalled) {
             return;
@@ -256,94 +303,128 @@ final class YouTubeAdBlocker {
               return;
             }
 
+            if (
+              element.dataset &&
+              element.dataset.offloopAdHidden === 'true'
+            ) {
+              return;
+            }
+
             element.style.setProperty(
               'display',
               'none',
               'important'
             );
+
+            if (element.dataset) {
+
+              element.dataset.offloopAdHidden =
+                'true';
+            }
           };
 
 
           const removeAds = () => {
 
+            /*
+             ELEMENTOS PUBLICITARIOS
+             DEL PLAYER Y DEL FEED
+            */
+
             const selectors = [
 
-              /*
-               Desktop / player
-              */
-
               '.ytp-ad-module',
+
               '.ytp-ad-overlay-container',
+
               '.ytp-ad-player-overlay',
+
               '.ytp-ad-text-overlay',
+
               '.ytp-ad-preview-container',
+
               '.ytp-ad-image-overlay',
 
-              /*
-               Desktop feed
-              */
-
               'ytd-ad-slot-renderer',
+
               'ytd-display-ad-renderer',
+
               'ytd-promoted-video-renderer',
+
               'ytd-in-feed-ad-layout-renderer',
+
               'ytd-banner-promo-renderer',
+
               'ytd-action-companion-ad-renderer',
+
               'ytd-promoted-sparkles-web-renderer',
 
-              /*
-               Mobile YouTube
-              */
-
               'ytm-promoted-video-renderer',
+
               'ytm-companion-ad-renderer',
+
               'ytm-promoted-sparkles-web-renderer',
+
               'ytm-display-ad-renderer'
             ];
 
 
-            selectors.forEach(selector => {
+            selectors.forEach(
+              selector => {
 
-              document
-                .querySelectorAll(selector)
-                .forEach(hide);
-            });
+                document
+                  .querySelectorAll(selector)
+                  .forEach(hide);
+              }
+            );
 
 
             /*
-             Si YouTube ofrece oficialmente
-             "Saltar anuncio", lo pulsamos.
+             SKIP AD
+
+             Solo usamos botones que
+             YouTube ya muestra al usuario.
             */
 
             const skipSelectors = [
 
               '.ytp-ad-skip-button',
+
               '.ytp-ad-skip-button-modern',
+
               'button.ytp-skip-ad-button',
+
               '.ytp-skip-ad-button'
             ];
 
 
-            skipSelectors.forEach(selector => {
+            skipSelectors.forEach(
+              selector => {
 
-              document
-                .querySelectorAll(selector)
-                .forEach(button => {
+                document
+                  .querySelectorAll(selector)
+                  .forEach(button => {
 
-                  if (
-                    button instanceof HTMLElement &&
-                    !button.disabled
-                  ) {
+                    if (
+                      button instanceof HTMLElement &&
+                      !button.disabled
+                    ) {
 
-                    button.click();
-                  }
-                });
-            });
+                      button.click();
+                    }
+                  });
+              }
+            );
           };
 
 
           /*
-           YouTube modifica continuamente su DOM.
+           YouTube funciona como SPA
+           y modifica el DOM constantemente.
+
+           MutationObserver vuelve a aplicar
+           el filtro cuando aparecen
+           nuevos elementos.
           */
 
           let scheduled = false;
@@ -367,8 +448,16 @@ final class YouTubeAdBlocker {
           };
 
 
+          /*
+           Primera limpieza.
+          */
+
           removeAds();
 
+
+          /*
+           Limpieza dinámica.
+          */
 
           const observer =
             new MutationObserver(schedule);
@@ -382,6 +471,11 @@ final class YouTubeAdBlocker {
             }
           );
 
+
+          /*
+           YouTube cambia de vídeo
+           sin recargar siempre la página.
+          */
 
           window.addEventListener(
             'pageshow',
@@ -406,5 +500,17 @@ final class YouTubeAdBlocker {
                 forMainFrameOnly: false
             )
         )
+    }
+
+
+    // MARK: - ERRORS
+
+    private enum AdBlockError: Error {
+
+        case ruleStoreUnavailable
+
+        case ruleListNotFound
+
+        case ruleCompilationFailed
     }
 }
