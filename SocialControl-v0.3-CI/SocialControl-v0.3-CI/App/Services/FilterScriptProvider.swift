@@ -41,17 +41,10 @@ enum FilterScriptProvider {
             }
           };
 
-
-          // --------------------------------------------------
-          // ROUTE PROTECTION
-          // --------------------------------------------------
-
           const blockRoutes = () => {
-
             const host = location.hostname;
             const path = location.pathname;
 
-            // Instagram Reels
             if (
               config.reels &&
               host.includes("instagram.com") &&
@@ -60,16 +53,10 @@ enum FilterScriptProvider {
                 path.startsWith("/reels")
               )
             ) {
-
-              location.replace(
-                "https://www.instagram.com/"
-              );
-
+              location.replace("https://www.instagram.com/");
               return true;
             }
 
-
-            // YouTube Shorts
             if (
               config.shorts &&
               host.includes("youtube.com") &&
@@ -79,31 +66,20 @@ enum FilterScriptProvider {
                 path.startsWith("/shorts/")
               )
             ) {
-
-              location.replace(
-                "https://m.youtube.com/"
-              );
-
+              location.replace("https://m.youtube.com/");
               return true;
             }
 
             return false;
           };
 
-
-          // --------------------------------------------------
-          // INSTAGRAM REELS
-          // --------------------------------------------------
-
           const cleanInstagram = () => {
-
             if (
               !config.reels ||
               !location.hostname.includes("instagram.com")
             ) {
               return;
             }
-
 
             document.querySelectorAll(
               'a[href^="/reel/"],' +
@@ -112,20 +88,15 @@ enum FilterScriptProvider {
               'a[href="/reels/"]'
             ).forEach((link) => {
 
-              const navigationItem =
-                link.closest("nav > div") ||
-                link.closest('div[role="presentation"]') ||
+              const target =
                 link.closest("article") ||
+                link.closest('div[role="presentation"]') ||
+                link.closest("nav") ||
                 link;
 
-              hide(navigationItem);
+              hide(target);
             });
           };
-
-
-          // --------------------------------------------------
-          // YOUTUBE SHORTS
-          // --------------------------------------------------
 
           const cleanYouTubeShorts = () => {
 
@@ -136,102 +107,88 @@ enum FilterScriptProvider {
               return;
             }
 
+            document.querySelectorAll(
+              "ytm-reel-shelf-renderer," +
+              "ytd-reel-shelf-renderer"
+            ).forEach(hide);
 
-            /*
-             MOBILE YOUTUBE
-             Bottom navigation item:
-             Home | Shorts | You
-            */
+            document.querySelectorAll(
+              'a[href="/shorts"],' +
+              'a[href="/shorts/"],' +
+              'a[href^="/shorts/"]'
+            ).forEach((link) => {
 
-            document
-              .querySelectorAll(
-                'ytm-pivot-bar-item-renderer a[href="/shorts"],' +
-                'ytm-pivot-bar-item-renderer a[href="/shorts/"],' +
-                'ytm-pivot-bar-item-renderer a[href^="/shorts/"]'
-              )
-              .forEach((link) => {
+              const rect = link.getBoundingClientRect();
 
-                const item =
-                  link.closest(
-                    "ytm-pivot-bar-item-renderer"
-                  );
+              if (rect.top > window.innerHeight * 0.70) {
 
-                hide(item);
-              });
+                let candidate = link;
 
+                for (let i = 0; i < 5; i++) {
 
-            /*
-             Some mobile builds put the href directly
-             on another element inside the navigation item.
-            */
+                  if (!candidate.parentElement) break;
 
-            document
-              .querySelectorAll(
-                'a[href="/shorts"],' +
-                'a[href="/shorts/"]'
-              )
-              .forEach((link) => {
+                  const parent = candidate.parentElement;
+                  const parentRect = parent.getBoundingClientRect();
 
-                const mobileNav =
-                  link.closest(
-                    "ytm-pivot-bar-item-renderer"
-                  );
-
-                if (mobileNav) {
-                  hide(mobileNav);
+                  if (
+                    parentRect.width < window.innerWidth * 0.55 &&
+                    parentRect.height < 160
+                  ) {
+                    candidate = parent;
+                  } else {
+                    break;
+                  }
                 }
-              });
 
+                hide(candidate);
+              }
+            });
 
-            /*
-             MOBILE SHORTS SHELVES
-            */
+            document.querySelectorAll(
+              "a,button,span,div"
+            ).forEach((element) => {
 
-            document
-              .querySelectorAll(
-                "ytm-reel-shelf-renderer"
-              )
-              .forEach(hide);
+              const text =
+                (element.innerText || element.textContent || "")
+                  .trim()
+                  .toLowerCase();
 
+              if (text !== "shorts") {
+                return;
+              }
 
-            /*
-             DESKTOP SHORTS NAVIGATION
-            */
+              const rect = element.getBoundingClientRect();
 
-            document
-              .querySelectorAll(
-                'ytd-guide-entry-renderer a[href="/shorts"],' +
-                'ytd-mini-guide-entry-renderer a[href="/shorts"]'
-              )
-              .forEach((link) => {
+              if (
+                rect.top < window.innerHeight * 0.70 ||
+                rect.top > window.innerHeight
+              ) {
+                return;
+              }
 
-                const item =
-                  link.closest(
-                    "ytd-guide-entry-renderer"
-                  ) ||
-                  link.closest(
-                    "ytd-mini-guide-entry-renderer"
-                  );
+              let candidate = element;
 
-                hide(item);
-              });
+              for (let i = 0; i < 5; i++) {
 
+                if (!candidate.parentElement) break;
 
-            /*
-             DESKTOP SHORTS SHELVES
-            */
+                const parent = candidate.parentElement;
+                const parentRect = parent.getBoundingClientRect();
 
-            document
-              .querySelectorAll(
-                "ytd-reel-shelf-renderer"
-              )
-              .forEach(hide);
+                if (
+                  parentRect.width < window.innerWidth * 0.55 &&
+                  parentRect.height < 160
+                ) {
+                  candidate = parent;
+                } else {
+                  break;
+                }
+              }
+
+              hide(candidate);
+            });
           };
-
-
-          // --------------------------------------------------
-          // YOUTUBE ADS
-          // --------------------------------------------------
 
           const cleanYouTubeAds = () => {
 
@@ -242,37 +199,25 @@ enum FilterScriptProvider {
               return;
             }
 
-
             const selectors = [
-
               ".ytp-ad-module",
               ".ytp-ad-overlay-container",
               ".ytp-ad-player-overlay",
-
               "ytd-ad-slot-renderer",
               "ytd-display-ad-renderer",
               "ytd-promoted-video-renderer",
               "ytd-in-feed-ad-layout-renderer",
               "ytd-banner-promo-renderer",
               "ytd-action-companion-ad-renderer",
-
               "ytm-promoted-video-renderer",
               "ytm-companion-ad-renderer"
             ];
 
-
             selectors.forEach((selector) => {
-
               document
                 .querySelectorAll(selector)
                 .forEach(hide);
             });
-
-
-            /*
-             Only use YouTube's own Skip button.
-             We do NOT block googlevideo.com.
-            */
 
             document
               .querySelectorAll(
@@ -291,11 +236,6 @@ enum FilterScriptProvider {
               });
           };
 
-
-          // --------------------------------------------------
-          // APPLY
-          // --------------------------------------------------
-
           const apply = () => {
 
             if (blockRoutes()) {
@@ -306,11 +246,6 @@ enum FilterScriptProvider {
             cleanYouTubeShorts();
             cleanYouTubeAds();
           };
-
-
-          // --------------------------------------------------
-          // OBSERVER
-          // --------------------------------------------------
 
           let scheduled = false;
 
@@ -323,16 +258,12 @@ enum FilterScriptProvider {
             scheduled = true;
 
             requestAnimationFrame(() => {
-
               scheduled = false;
-
               apply();
             });
           };
 
-
           apply();
-
 
           if (!window.__socialControlObserver) {
 
@@ -348,16 +279,8 @@ enum FilterScriptProvider {
             );
           }
 
-
-          window.addEventListener(
-            "popstate",
-            schedule
-          );
-
-          window.addEventListener(
-            "pageshow",
-            schedule
-          );
+          window.addEventListener("popstate", schedule);
+          window.addEventListener("pageshow", schedule);
 
         })();
         """
