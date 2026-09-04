@@ -5,7 +5,11 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            if appState.hasCompletedOnboarding {
+            if let destination = appState.debugDestination {
+                NavigationStack {
+                    SocialBrowserView(platform: destination)
+                }
+            } else if appState.hasCompletedOnboarding {
                 MainView()
             } else {
                 OnboardingView()
