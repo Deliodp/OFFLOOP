@@ -43,7 +43,6 @@ jobs:
           echo "Simulador elegido: $DEVICE_ID"
 
           if [ -z "$DEVICE_ID" ]; then
-            echo "No se encontró ningún simulador de iPhone disponible."
             xcrun simctl list devices available
             exit 1
           fi
@@ -58,51 +57,46 @@ jobs:
             -name "SocialControl.app" \
             | head -1)
 
-          echo "App encontrada en: $APP_PATH"
-
-          if [ -z "$APP_PATH" ]; then
-            echo "No se encontró SocialControl.app"
-            exit 1
-          fi
-
           xcrun simctl install booted "$APP_PATH"
 
-      - name: Abrir Instagram
+      - name: Probar acceso directo a Instagram Reels
         run: |
           xcrun simctl launch \
             booted \
             com.yourcompany.SocialControl \
             -skipOnboarding \
-            -debugPlatform instagram
+            -debugPlatform instagram \
+            -debugURL https://www.instagram.com/reels/
 
-          sleep 10
+          sleep 12
 
           xcrun simctl io \
             booted \
-            screenshot instagram-browser.png
+            screenshot instagram-direct-block.png
 
           xcrun simctl terminate \
             booted \
             com.yourcompany.SocialControl || true
 
-      - name: Abrir YouTube
+      - name: Probar acceso directo a YouTube Shorts
         run: |
           xcrun simctl launch \
             booted \
             com.yourcompany.SocialControl \
             -skipOnboarding \
-            -debugPlatform youtube
+            -debugPlatform youtube \
+            -debugURL https://m.youtube.com/shorts/dQw4w9WgXcQ
 
-          sleep 10
+          sleep 12
 
           xcrun simctl io \
             booted \
-            screenshot youtube-browser.png
+            screenshot youtube-direct-block.png
 
       - name: Subir capturas
         uses: actions/upload-artifact@v4
         with:
-          name: browser-smoke-test
+          name: direct-route-test
           path: |
-            SocialControl-v0.3-CI/SocialControl-v0.3-CI/instagram-browser.png
-            SocialControl-v0.3-CI/SocialControl-v0.3-CI/youtube-browser.png
+            SocialControl-v0.3-CI/SocialControl-v0.3-CI/instagram-direct-block.png
+            SocialControl-v0.3-CI/SocialControl-v0.3-CI/youtube-direct-block.png
