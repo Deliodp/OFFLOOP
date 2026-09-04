@@ -1,0 +1,67 @@
+name: Browser Smoke Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  browser:
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    defaults:
+      run:
+        working-directory: SocialControl-v0.3-CI/SocialControl-v0.3-CI
+
+    steps:
+      - name: Descargar proyecto
+        uses: actions/checkout@v4
+
+      - name: Instalar XcodeGen
+        run: brew install xcodegen
+
+      - name: Generar proyecto
+        run: xcodegen generate
+
+      - name: Compilar
+        run: |
+          xcodebuild \
+            -project SocialControl.xcodeproj \
+            -scheme SocialControl \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -derivedDataPath DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            clean build
+
+      - name: Arrancar simulador
+        run: |
+          xcrun simctl boot "iPhone 16" || true
+          open -a Simulator
+          xcrun simctl bootstatus "iPhone 16" -b
+
+      - name: Instalar app
+        run: |
+          APP_PATH=$(find DerivedData/Build/Products/Debug-iphonesimulator -name "SocialControl.app" | head -1)
+          xcrun simctl install booted "$APP_PATH"
+
+      - name: Abrir Instagram
+        run: |
+          xcrun simctl launch booted com.yourcompany.SocialControl -skipOnboarding -debugPlatform instagram
+          sleep 10
+          xcrun simctl io booted screenshot instagram-browser.png
+          xcrun simctl terminate booted com.yourcompany.SocialControl || true
+
+      - name: Abrir YouTube
+        run: |
+          xcrun simctl launch booted com.yourcompany.SocialControl -skipOnboarding -debugPlatform youtube
+          sleep 10
+          xcrun simctl io booted screenshot youtube-browser.png
+
+      - name: Subir capturas
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-smoke-test
+          path: |
+            SocialControl-v0.3-CI/SocialControl-v0.3-CI/instagram-browser.png
+            SocialControl-v0.3-CI/SocialControl-v0.3-CI/youtube-browser.png
