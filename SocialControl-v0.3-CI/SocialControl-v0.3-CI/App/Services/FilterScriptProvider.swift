@@ -6,262 +6,295 @@ enum SocialPlatform {
 }
 
 enum FilterScriptProvider {
+
     static func script(
         platform: SocialPlatform,
         blockReels: Bool,
         blockShorts: Bool,
         blockAds: Bool
     ) -> String {
+
         """
         (() => {
+
           const config = {
             reels: \(blockReels ? "true" : "false"),
             shorts: \(blockShorts ? "true" : "false"),
             ads: \(blockAds ? "true" : "false")
           };
 
-          const hide = (el) => {
-            if (!el) return;
-            el.style.setProperty('display', 'none', 'important');
+          const hide = (element) => {
+            if (!element) return;
+
+            if (element.dataset?.socialControlHidden === "true") {
+              return;
+            }
+
+            element.style.setProperty(
+              "display",
+              "none",
+              "important"
+            );
+
+            if (element.dataset) {
+              element.dataset.socialControlHidden = "true";
+            }
           };
 
-          const visibleText = (el) =>
-            (
-              (el?.innerText || el?.textContent || '') +
-              ' ' +
-              (el?.getAttribute?.('aria-label') || '')
-            ).toLowerCase();
 
-          // MARK: - ROUTE PROTECTION
+          // --------------------------------------------------
+          // ROUTE PROTECTION
+          // --------------------------------------------------
 
           const blockRoutes = () => {
+
             const host = location.hostname;
             const path = location.pathname;
 
             // Instagram Reels
             if (
-              host.includes('instagram.com') &&
               config.reels &&
+              host.includes("instagram.com") &&
               (
-                path.startsWith('/reel/') ||
-                path.startsWith('/reels')
+                path.startsWith("/reel/") ||
+                path.startsWith("/reels")
               )
             ) {
-              location.replace('https://www.instagram.com/');
+
+              location.replace(
+                "https://www.instagram.com/"
+              );
+
               return true;
             }
 
+
             // YouTube Shorts
             if (
-              host.includes('youtube.com') &&
               config.shorts &&
+              host.includes("youtube.com") &&
               (
-                path === '/shorts' ||
-                path === '/shorts/' ||
-                path.startsWith('/shorts/')
+                path === "/shorts" ||
+                path === "/shorts/" ||
+                path.startsWith("/shorts/")
               )
             ) {
-              location.replace('https://m.youtube.com/');
+
+              location.replace(
+                "https://m.youtube.com/"
+              );
+
               return true;
             }
 
             return false;
           };
 
-          // MARK: - INSTAGRAM
+
+          // --------------------------------------------------
+          // INSTAGRAM REELS
+          // --------------------------------------------------
 
           const cleanInstagram = () => {
+
             if (
               !config.reels ||
-              !location.hostname.includes('instagram.com')
-            ) return;
+              !location.hostname.includes("instagram.com")
+            ) {
+              return;
+            }
+
 
             document.querySelectorAll(
               'a[href^="/reel/"],' +
               'a[href^="/reels/"],' +
               'a[href="/reels"],' +
               'a[href="/reels/"]'
-            ).forEach(a => {
+            ).forEach((link) => {
 
-              const target =
-                a.closest('article') ||
-                a.closest('div[role="presentation"]') ||
-                a.closest('nav') ||
-                a.closest('div') ||
-                a;
+              const navigationItem =
+                link.closest("nav > div") ||
+                link.closest('div[role="presentation"]') ||
+                link.closest("article") ||
+                link;
 
-              hide(target);
-            });
-
-            // Fallback por texto/aria-label
-            document.querySelectorAll('a,button').forEach(el => {
-              const text = visibleText(el);
-              const href = el.getAttribute?.('href') || '';
-
-              if (
-                text === 'reels' ||
-                text.includes(' reels') ||
-                href.includes('/reel')
-              ) {
-                hide(
-                  el.closest('div') ||
-                  el.closest('nav') ||
-                  el
-                );
-              }
+              hide(navigationItem);
             });
           };
 
-          // MARK: - YOUTUBE SHORTS
+
+          // --------------------------------------------------
+          // YOUTUBE SHORTS
+          // --------------------------------------------------
 
           const cleanYouTubeShorts = () => {
+
             if (
               !config.shorts ||
-              !location.hostname.includes('youtube.com')
-            ) return;
+              !location.hostname.includes("youtube.com")
+            ) {
+              return;
+            }
+
 
             /*
-             * YouTube tiene DOM diferente en:
-             * - youtube.com
-             * - m.youtube.com
-             *
-             * Cubrimos ambos.
-             */
+             MOBILE YOUTUBE
+             Bottom navigation item:
+             Home | Shorts | You
+            */
 
-            const selectors = [
-              'a[href="/shorts"]',
-              'a[href="/shorts/"]',
-              'a[href^="/shorts/"]',
-              'a[href*="youtube.com/shorts"]',
-              'a[title="Shorts"]',
-              '[aria-label="Shorts"]',
-              '[aria-label*="Shorts"]'
-            ];
+            document
+              .querySelectorAll(
+                'ytm-pivot-bar-item-renderer a[href="/shorts"],' +
+                'ytm-pivot-bar-item-renderer a[href="/shorts/"],' +
+                'ytm-pivot-bar-item-renderer a[href^="/shorts/"]'
+              )
+              .forEach((link) => {
 
-            selectors.forEach(selector => {
+                const item =
+                  link.closest(
+                    "ytm-pivot-bar-item-renderer"
+                  );
 
-              document.querySelectorAll(selector).forEach(el => {
-
-                const target =
-                  // Mobile YouTube
-                  el.closest('ytm-pivot-bar-item-renderer') ||
-                  el.closest('ytm-reel-shelf-renderer') ||
-                  el.closest('ytm-rich-item-renderer') ||
-                  el.closest('ytm-video-with-context-renderer') ||
-
-                  // Desktop YouTube
-                  el.closest('ytd-reel-shelf-renderer') ||
-                  el.closest('ytd-rich-shelf-renderer') ||
-                  el.closest('ytd-rich-item-renderer') ||
-                  el.closest('ytd-video-renderer') ||
-                  el.closest('ytd-guide-entry-renderer') ||
-                  el.closest('ytd-mini-guide-entry-renderer') ||
-
-                  // Generic fallback
-                  el.closest('nav') ||
-                  el.parentElement ||
-                  el;
-
-                hide(target);
+                hide(item);
               });
-            });
 
-            // Estanterías/carruseles completas
-            document.querySelectorAll(
-              'ytm-reel-shelf-renderer,' +
-              'ytd-reel-shelf-renderer,' +
-              'ytd-rich-shelf-renderer[is-shorts]'
-            ).forEach(hide);
 
             /*
-             * Fallback especial para barra inferior móvil.
-             *
-             * Algunas versiones de YouTube generan Shorts sin un href
-             * fácilmente detectable pero mantienen el texto "Shorts".
-             */
-            document.querySelectorAll(
-              'ytm-pivot-bar-item-renderer,' +
-              'a,' +
-              'button'
-            ).forEach(el => {
+             Some mobile builds put the href directly
+             on another element inside the navigation item.
+            */
 
-              const text = visibleText(el);
-              const href = el.getAttribute?.('href') || '';
+            document
+              .querySelectorAll(
+                'a[href="/shorts"],' +
+                'a[href="/shorts/"]'
+              )
+              .forEach((link) => {
 
-              if (
-                text === 'shorts' ||
-                href === '/shorts' ||
-                href === '/shorts/' ||
-                href.startsWith('/shorts/')
-              ) {
+                const mobileNav =
+                  link.closest(
+                    "ytm-pivot-bar-item-renderer"
+                  );
 
-                const target =
-                  el.closest('ytm-pivot-bar-item-renderer') ||
-                  el.closest('ytd-guide-entry-renderer') ||
-                  el;
+                if (mobileNav) {
+                  hide(mobileNav);
+                }
+              });
 
-                hide(target);
-              }
-            });
+
+            /*
+             MOBILE SHORTS SHELVES
+            */
+
+            document
+              .querySelectorAll(
+                "ytm-reel-shelf-renderer"
+              )
+              .forEach(hide);
+
+
+            /*
+             DESKTOP SHORTS NAVIGATION
+            */
+
+            document
+              .querySelectorAll(
+                'ytd-guide-entry-renderer a[href="/shorts"],' +
+                'ytd-mini-guide-entry-renderer a[href="/shorts"]'
+              )
+              .forEach((link) => {
+
+                const item =
+                  link.closest(
+                    "ytd-guide-entry-renderer"
+                  ) ||
+                  link.closest(
+                    "ytd-mini-guide-entry-renderer"
+                  );
+
+                hide(item);
+              });
+
+
+            /*
+             DESKTOP SHORTS SHELVES
+            */
+
+            document
+              .querySelectorAll(
+                "ytd-reel-shelf-renderer"
+              )
+              .forEach(hide);
           };
 
-          // MARK: - YOUTUBE ADS
+
+          // --------------------------------------------------
+          // YOUTUBE ADS
+          // --------------------------------------------------
 
           const cleanYouTubeAds = () => {
+
             if (
               !config.ads ||
-              !location.hostname.includes('youtube.com')
-            ) return;
+              !location.hostname.includes("youtube.com")
+            ) {
+              return;
+            }
 
-            /*
-             * Conservador:
-             * ocultamos elementos publicitarios del DOM
-             * y usamos el botón Skip de YouTube cuando existe.
-             *
-             * NO bloqueamos googlevideo.com porque podría
-             * romper vídeos normales.
-             */
 
             const selectors = [
-              '.ytp-ad-module',
-              '.ytp-ad-overlay-container',
-              '.ytp-ad-player-overlay',
 
-              'ytd-ad-slot-renderer',
-              'ytd-display-ad-renderer',
-              'ytd-promoted-video-renderer',
-              'ytd-in-feed-ad-layout-renderer',
-              'ytd-banner-promo-renderer',
-              'ytd-action-companion-ad-renderer',
+              ".ytp-ad-module",
+              ".ytp-ad-overlay-container",
+              ".ytp-ad-player-overlay",
 
-              'ytm-promoted-sparkles-web-renderer',
-              'ytm-promoted-video-renderer',
-              'ytm-companion-ad-renderer'
+              "ytd-ad-slot-renderer",
+              "ytd-display-ad-renderer",
+              "ytd-promoted-video-renderer",
+              "ytd-in-feed-ad-layout-renderer",
+              "ytd-banner-promo-renderer",
+              "ytd-action-companion-ad-renderer",
+
+              "ytm-promoted-video-renderer",
+              "ytm-companion-ad-renderer"
             ];
 
-            selectors.forEach(selector => {
+
+            selectors.forEach((selector) => {
+
               document
                 .querySelectorAll(selector)
                 .forEach(hide);
             });
 
-            // Pulsamos únicamente el botón oficial de saltar anuncio.
-            document.querySelectorAll(
-              '.ytp-ad-skip-button,' +
-              '.ytp-ad-skip-button-modern,' +
-              'button.ytp-skip-ad-button'
-            ).forEach(button => {
 
-              if (
-                button instanceof HTMLElement &&
-                !button.disabled
-              ) {
-                button.click();
-              }
-            });
+            /*
+             Only use YouTube's own Skip button.
+             We do NOT block googlevideo.com.
+            */
+
+            document
+              .querySelectorAll(
+                ".ytp-ad-skip-button," +
+                ".ytp-ad-skip-button-modern," +
+                "button.ytp-skip-ad-button"
+              )
+              .forEach((button) => {
+
+                if (
+                  button instanceof HTMLElement &&
+                  !button.disabled
+                ) {
+                  button.click();
+                }
+              });
           };
 
-          // MARK: - APPLY
+
+          // --------------------------------------------------
+          // APPLY
+          // --------------------------------------------------
 
           const apply = () => {
 
@@ -274,13 +307,10 @@ enum FilterScriptProvider {
             cleanYouTubeAds();
           };
 
-          /*
-           * Instagram y YouTube son SPA:
-           * modifican la página constantemente sin recargarla.
-           *
-           * MutationObserver vuelve a aplicar los filtros
-           * cuando cambia el DOM.
-           */
+
+          // --------------------------------------------------
+          // OBSERVER
+          // --------------------------------------------------
 
           let scheduled = false;
 
@@ -293,12 +323,16 @@ enum FilterScriptProvider {
             scheduled = true;
 
             requestAnimationFrame(() => {
+
               scheduled = false;
+
               apply();
             });
           };
 
+
           apply();
+
 
           if (!window.__socialControlObserver) {
 
@@ -309,29 +343,19 @@ enum FilterScriptProvider {
               document.documentElement,
               {
                 childList: true,
-                subtree: true,
-                attributes: false
+                subtree: true
               }
             );
           }
 
-          /*
-           * Reaplicar cuando el usuario navega
-           * dentro de la SPA.
-           */
 
           window.addEventListener(
-            'popstate',
+            "popstate",
             schedule
           );
 
           window.addEventListener(
-            'pageshow',
-            schedule
-          );
-
-          window.addEventListener(
-            'hashchange',
+            "pageshow",
             schedule
           );
 
