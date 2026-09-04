@@ -28,35 +28,76 @@ jobs:
             -project SocialControl.xcodeproj \
             -scheme SocialControl \
             -sdk iphonesimulator \
-            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath DerivedData \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             clean build
 
-      - name: Arrancar simulador
+      - name: Elegir y arrancar simulador
         run: |
-          xcrun simctl boot "iPhone 16" || true
+          DEVICE_ID=$(xcrun simctl list devices available \
+            | grep -m 1 -E "iPhone" \
+            | grep -oE '[0-9A-F-]{36}')
+
+          echo "Simulador elegido: $DEVICE_ID"
+
+          if [ -z "$DEVICE_ID" ]; then
+            echo "No se encontró ningún simulador de iPhone disponible."
+            xcrun simctl list devices available
+            exit 1
+          fi
+
+          xcrun simctl boot "$DEVICE_ID" || true
           open -a Simulator
-          xcrun simctl bootstatus "iPhone 16" -b
+          xcrun simctl bootstatus "$DEVICE_ID" -b
 
       - name: Instalar app
         run: |
-          APP_PATH=$(find DerivedData/Build/Products/Debug-iphonesimulator -name "SocialControl.app" | head -1)
+          APP_PATH=$(find DerivedData/Build/Products/Debug-iphonesimulator \
+            -name "SocialControl.app" \
+            | head -1)
+
+          echo "App encontrada en: $APP_PATH"
+
+          if [ -z "$APP_PATH" ]; then
+            echo "No se encontró SocialControl.app"
+            exit 1
+          fi
+
           xcrun simctl install booted "$APP_PATH"
 
       - name: Abrir Instagram
         run: |
-          xcrun simctl launch booted com.yourcompany.SocialControl -skipOnboarding -debugPlatform instagram
+          xcrun simctl launch \
+            booted \
+            com.yourcompany.SocialControl \
+            -skipOnboarding \
+            -debugPlatform instagram
+
           sleep 10
-          xcrun simctl io booted screenshot instagram-browser.png
-          xcrun simctl terminate booted com.yourcompany.SocialControl || true
+
+          xcrun simctl io \
+            booted \
+            screenshot instagram-browser.png
+
+          xcrun simctl terminate \
+            booted \
+            com.yourcompany.SocialControl || true
 
       - name: Abrir YouTube
         run: |
-          xcrun simctl launch booted com.yourcompany.SocialControl -skipOnboarding -debugPlatform youtube
+          xcrun simctl launch \
+            booted \
+            com.yourcompany.SocialControl \
+            -skipOnboarding \
+            -debugPlatform youtube
+
           sleep 10
-          xcrun simctl io booted screenshot youtube-browser.png
+
+          xcrun simctl io \
+            booted \
+            screenshot youtube-browser.png
 
       - name: Subir capturas
         uses: actions/upload-artifact@v4
