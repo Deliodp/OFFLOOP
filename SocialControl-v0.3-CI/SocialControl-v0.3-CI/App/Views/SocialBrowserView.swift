@@ -42,14 +42,15 @@ private struct PersistentSocialWebView: UIViewRepresentable {
                 blockAds: blockAds
             )
 
-            let webView = WKWebView(frame: .zero, configuration: configuration)
+            let webView = WKWebView(
+                frame: .zero,
+                configuration: configuration
+            )
+
             webView.translatesAutoresizingMaskIntoConstraints = false
             webView.navigationDelegate = context.coordinator
             webView.allowsBackForwardNavigationGestures = true
             webView.scrollView.keyboardDismissMode = .interactive
-
-            // Keep normal mobile website behavior.
-            webView.customUserAgent = nil
 
             container.addSubview(webView)
 
@@ -62,22 +63,46 @@ private struct PersistentSocialWebView: UIViewRepresentable {
 
             context.coordinator.webView = webView
 
-            let url: URL
-            switch platform {
-            case .instagram:
-                url = URL(string: "https://www.instagram.com/")!
-            case .youtube:
-                url = URL(string: "https://m.youtube.com/")!
+            let arguments = ProcessInfo.processInfo.arguments
+
+            var debugURL: URL?
+
+            if let index = arguments.firstIndex(of: "-debugURL"),
+               arguments.indices.contains(index + 1) {
+                debugURL = URL(string: arguments[index + 1])
             }
 
-            webView.load(URLRequest(url: url))
+            let defaultURL: URL
+
+            switch platform {
+            case .instagram:
+                defaultURL = URL(
+                    string: "https://www.instagram.com/"
+                )!
+
+            case .youtube:
+                defaultURL = URL(
+                    string: "https://m.youtube.com/"
+                )!
+            }
+
+            webView.load(
+                URLRequest(
+                    url: debugURL ?? defaultURL
+                )
+            )
         }
 
         return container
     }
 
-    func updateUIView(_ uiView: UIView, context: Context) {
-        guard let webView = context.coordinator.webView else { return }
+    func updateUIView(
+        _ uiView: UIView,
+        context: Context
+    ) {
+        guard let webView = context.coordinator.webView else {
+            return
+        }
 
         let script = FilterScriptProvider.script(
             platform: platform,
@@ -86,15 +111,42 @@ private struct PersistentSocialWebView: UIViewRepresentable {
             blockAds: blockAds
         )
 
-        webView.evaluateJavaScript(script, completionHandler: nil)
+        webView.evaluateJavaScript(
+            script,
+            completionHandler: nil
+        )
     }
 
     final class Coordinator: NSObject, WKNavigationDelegate {
+
         weak var webView: WKWebView?
 
-        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-            // Session cookies and local storage use WKWebsiteDataStore.default()
-            // from BrowserSession, so they persist across launches.
+        func webView(
+            _ webView: WKWebView,
+            didFinish navigation: WKNavigation!
+        ) {
+            let script = FilterScriptProvider.script(
+                platform: inferPlatform(from: webView.url),
+                blockReels: true,
+                blockShorts: true,
+                blockAds: false
+            )
+
+            webView.evaluateJavaScript(
+                script,
+                completionHandler: nil
+            )
+        }
+
+        private func inferPlatform(
+            from url: URL?
+        ) -> SocialPlatform {
+
+            if url?.host?.contains("instagram.com") == true {
+                return .instagram
+            }
+
+            return .youtube
         }
 
         func webView(
