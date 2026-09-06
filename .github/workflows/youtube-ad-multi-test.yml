@@ -1,0 +1,204 @@
+name: YouTube Multi Ad Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  youtube-multi-ad-test:
+    runs-on: macos-15
+    timeout-minutes: 40
+
+    defaults:
+      run:
+        working-directory: SocialControl-v0.3-CI/SocialControl-v0.3-CI
+
+    steps:
+      - name: Descargar proyecto
+        uses: actions/checkout@v4
+
+      - name: Instalar XcodeGen
+        run: brew install xcodegen
+
+      - name: Generar proyecto
+        run: xcodegen generate
+
+      - name: Compilar
+        run: |
+          xcodebuild \
+            -project SocialControl.xcodeproj \
+            -scheme SocialControl \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            clean build
+
+      - name: Arrancar simulador
+        run: |
+          DEVICE_ID=$(xcrun simctl list devices available \
+            | grep -m 1 -E "iPhone" \
+            | grep -oE '[0-9A-F-]{36}')
+
+          echo "Simulador: $DEVICE_ID"
+
+          if [ -z "$DEVICE_ID" ]; then
+            xcrun simctl list devices available
+            exit 1
+          fi
+
+          xcrun simctl boot "$DEVICE_ID" || true
+          open -a Simulator
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+
+      - name: Instalar OFFLOOP
+        run: |
+          APP_PATH=$(find DerivedData/Build/Products/Debug-iphonesimulator \
+            -name "SocialControl.app" \
+            | head -1)
+
+          xcrun simctl install booted "$APP_PATH"
+
+      # --------------------------------------------------
+      # VIDEO 1 - CONTROL
+      # --------------------------------------------------
+
+      - name: Video 1 - Premium OFF
+        run: |
+          xcrun simctl launch \
+            booted \
+            com.yourcompany.SocialControl \
+            -skipOnboarding \
+            -debugPlatform youtube \
+            -debugURL "https://m.youtube.com/watch?v=dQw4w9WgXcQ" \
+            -debugPremium false
+
+          sleep 8
+
+          xcrun simctl io booted screenshot control-1.png
+
+          xcrun simctl terminate \
+            booted \
+            com.yourcompany.SocialControl || true
+
+      # --------------------------------------------------
+      # VIDEO 1 - PREMIUM
+      # --------------------------------------------------
+
+      - name: Video 1 - Premium ON
+        run: |
+          xcrun simctl launch \
+            booted \
+            com.yourcompany.SocialControl \
+            -skipOnboarding \
+            -debugPlatform youtube \
+            -debugURL "https://m.youtube.com/watch?v=dQw4w9WgXcQ" \
+            -debugPremium true
+
+          sleep 8
+
+          xcrun simctl io booted screenshot premium-1.png
+
+          xcrun simctl terminate \
+            booted \
+            com.yourcompany.SocialControl || true
+
+      # --------------------------------------------------
+      # VIDEO 2 - CONTROL
+      # --------------------------------------------------
+
+      - name: Video 2 - Premium OFF
+        run: |
+          xcrun simctl launch \
+            booted \
+            com.yourcompany.SocialControl \
+            -skipOnboarding \
+            -debugPlatform youtube \
+            -debugURL "https://m.youtube.com/watch?v=9bZkp7q19f0" \
+            -debugPremium false
+
+          sleep 8
+
+          xcrun simctl io booted screenshot control-2.png
+
+          xcrun simctl terminate \
+            booted \
+            com.yourcompany.SocialControl || true
+
+      # --------------------------------------------------
+      # VIDEO 2 - PREMIUM
+      # --------------------------------------------------
+
+      - name: Video 2 - Premium ON
+        run: |
+          xcrun simctl launch \
+            booted \
+            com.yourcompany.SocialControl \
+            -skipOnboarding \
+            -debugPlatform youtube \
+            -debugURL "https://m.youtube.com/watch?v=9bZkp7q19f0" \
+            -debugPremium true
+
+          sleep 8
+
+          xcrun simctl io booted screenshot premium-2.png
+
+          xcrun simctl terminate \
+            booted \
+            com.yourcompany.SocialControl || true
+
+      # --------------------------------------------------
+      # VIDEO 3 - CONTROL
+      # --------------------------------------------------
+
+      - name: Video 3 - Premium OFF
+        run: |
+          xcrun simctl launch \
+            booted \
+            com.yourcompany.SocialControl \
+            -skipOnboarding \
+            -debugPlatform youtube \
+            -debugURL "https://m.youtube.com/watch?v=kJQP7kiw5Fk" \
+            -debugPremium false
+
+          sleep 8
+
+          xcrun simctl io booted screenshot control-3.png
+
+          xcrun simctl terminate \
+            booted \
+            com.yourcompany.SocialControl || true
+
+      # --------------------------------------------------
+      # VIDEO 3 - PREMIUM
+      # --------------------------------------------------
+
+      - name: Video 3 - Premium ON
+        run: |
+          xcrun simctl launch \
+            booted \
+            com.yourcompany.SocialControl \
+            -skipOnboarding \
+            -debugPlatform youtube \
+            -debugURL "https://m.youtube.com/watch?v=kJQP7kiw5Fk" \
+            -debugPremium true
+
+          sleep 8
+
+          xcrun simctl io booted screenshot premium-3.png
+
+          xcrun simctl terminate \
+            booted \
+            com.yourcompany.SocialControl || true
+
+      - name: Subir resultados
+        uses: actions/upload-artifact@v4
+        with:
+          name: youtube-multi-ad-test
+          path: |
+            SocialControl-v0.3-CI/SocialControl-v0.3-CI/control-1.png
+            SocialControl-v0.3-CI/SocialControl-v0.3-CI/premium-1.png
+            SocialControl-v0.3-CI/SocialControl-v0.3-CI/control-2.png
+            SocialControl-v0.3-CI/SocialControl-v0.3-CI/premium-2.png
+            SocialControl-v0.3-CI/SocialControl-v0.3-CI/control-3.png
+            SocialControl-v0.3-CI/SocialControl-v0.3-CI/premium-3.png
