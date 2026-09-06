@@ -6,21 +6,33 @@ on:
 jobs:
   youtube-multi-ad-test:
     runs-on: macos-15
-    timeout-minutes: 20
+    timeout-minutes: 15
 
     defaults:
       run:
         working-directory: SocialControl-v0.3-CI/SocialControl-v0.3-CI
 
     steps:
+
+      # ==================================================
+      # PREPARAR PROYECTO
+      # ==================================================
+
       - name: Descargar proyecto
         uses: actions/checkout@v4
+
 
       - name: Instalar XcodeGen
         run: brew install xcodegen
 
+
       - name: Generar proyecto
         run: xcodegen generate
+
+
+      # ==================================================
+      # COMPILAR
+      # ==================================================
 
       - name: Compilar
         run: |
@@ -34,22 +46,35 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             clean build
 
+
+      # ==================================================
+      # SIMULADOR
+      # ==================================================
+
       - name: Arrancar simulador
         run: |
           DEVICE_ID=$(xcrun simctl list devices available \
             | grep -m 1 -E "iPhone" \
             | grep -oE '[0-9A-F-]{36}')
 
-          echo "Simulador: $DEVICE_ID"
+          echo "Simulador elegido: $DEVICE_ID"
 
           if [ -z "$DEVICE_ID" ]; then
+            echo "No se encontró ningún simulador iPhone."
             xcrun simctl list devices available
             exit 1
           fi
 
           xcrun simctl boot "$DEVICE_ID" || true
+
           open -a Simulator
+
           xcrun simctl bootstatus "$DEVICE_ID" -b
+
+
+      # ==================================================
+      # INSTALAR OFFLOOP
+      # ==================================================
 
       - name: Instalar OFFLOOP
         run: |
@@ -57,161 +82,200 @@ jobs:
             -name "SocialControl.app" \
             | head -1)
 
+          echo "OFFLOOP encontrada en:"
+          echo "$APP_PATH"
+
           if [ -z "$APP_PATH" ]; then
-            echo "No se encontró SocialControl.app"
+            echo "ERROR: No se encontró SocialControl.app"
             exit 1
           fi
 
           xcrun simctl install booted "$APP_PATH"
 
-      # --------------------------------------------------
-      # VIDEO 1
-      # --------------------------------------------------
 
-      - name: Video 1 - Premium OFF
-        timeout-minutes: 2
+      # ==================================================
+      # TEST A/B
+      # ==================================================
+
+      - name: Ejecutar pruebas de anuncios
+        timeout-minutes: 10
         run: |
-          xcrun simctl terminate \
-            booted \
-            com.yourcompany.SocialControl || true
 
-          xcrun simctl launch \
-            booted \
-            com.yourcompany.SocialControl \
-            -skipOnboarding \
-            -debugPlatform youtube \
-            -debugURL "https://m.youtube.com/watch?v=dQw4w9WgXcQ" \
-            -debugPremium false || true
+          APP_ID="com.yourcompany.SocialControl"
 
-          sleep 10
 
-          xcrun simctl io booted screenshot control-1.png
+          test_video () {
 
-      - name: Video 1 - Premium ON
-        timeout-minutes: 2
+            VIDEO_ID="$1"
+            MODE="$2"
+            OUTPUT="$3"
+
+            echo ""
+            echo "======================================"
+            echo "VIDEO: $VIDEO_ID"
+            echo "PREMIUM: $MODE"
+            echo "CAPTURA: $OUTPUT"
+            echo "======================================"
+            echo ""
+
+
+            # ------------------------------------------
+            # CERRAR INSTANCIA ANTERIOR
+            # ------------------------------------------
+
+            xcrun simctl terminate \
+              booted \
+              "$APP_ID" \
+              >/dev/null 2>&1 || true
+
+            sleep 2
+
+
+            # ------------------------------------------
+            # ABRIR OFFLOOP
+            #
+            # IMPORTANTE:
+            # simctl launch va en SEGUNDO PLANO.
+            #
+            # Así GitHub no puede quedarse bloqueado
+            # esperando indefinidamente.
+            # ------------------------------------------
+
+            xcrun simctl launch \
+              booted \
+              "$APP_ID" \
+              -skipOnboarding \
+              -debugPlatform youtube \
+              -debugURL "https://m.youtube.com/watch?v=$VIDEO_ID" \
+              -debugPremium "$MODE" \
+              > "launch-$OUTPUT.log" 2>&1 &
+
+            LAUNCH_PID=$!
+
+
+            echo "Proceso simctl: $LAUNCH_PID"
+
+
+            # ------------------------------------------
+            # DAR TIEMPO A YOUTUBE PARA CARGAR
+            # ------------------------------------------
+
+            sleep 12
+
+
+            # ------------------------------------------
+            # CAPTURA
+            # ------------------------------------------
+
+            echo "Sacando captura..."
+
+            xcrun simctl io \
+              booted \
+              screenshot "$OUTPUT" || true
+
+
+            # ------------------------------------------
+            # MATAR SOLO EL COMANDO SIMCTL SI SIGUE VIVO
+            # ------------------------------------------
+
+            kill "$LAUNCH_PID" \
+              >/dev/null 2>&1 || true
+
+            wait "$LAUNCH_PID" \
+              >/dev/null 2>&1 || true
+
+
+            # ------------------------------------------
+            # CERRAR OFFLOOP
+            # ------------------------------------------
+
+            xcrun simctl terminate \
+              booted \
+              "$APP_ID" \
+              >/dev/null 2>&1 || true
+
+
+            sleep 2
+
+            echo "Prueba terminada: $OUTPUT"
+          }
+
+
+          # ==================================================
+          # VIDEO 1
+          # ==================================================
+
+          test_video \
+            "dQw4w9WgXcQ" \
+            "false" \
+            "control-1.png"
+
+          test_video \
+            "dQw4w9WgXcQ" \
+            "true" \
+            "premium-1.png"
+
+
+          # ==================================================
+          # VIDEO 2
+          # ==================================================
+
+          test_video \
+            "9bZkp7q19f0" \
+            "false" \
+            "control-2.png"
+
+          test_video \
+            "9bZkp7q19f0" \
+            "true" \
+            "premium-2.png"
+
+
+          # ==================================================
+          # VIDEO 3
+          # ==================================================
+
+          test_video \
+            "kJQP7kiw5Fk" \
+            "false" \
+            "control-3.png"
+
+          test_video \
+            "kJQP7kiw5Fk" \
+            "true" \
+            "premium-3.png"
+
+
+      # ==================================================
+      # MOSTRAR QUÉ CAPTURAS EXISTEN
+      # ==================================================
+
+      - name: Comprobar resultados
+        if: always()
         run: |
-          xcrun simctl terminate \
-            booted \
-            com.yourcompany.SocialControl || true
+          echo "Capturas generadas:"
+          ls -lh *.png || true
 
-          sleep 2
 
-          xcrun simctl launch \
-            booted \
-            com.yourcompany.SocialControl \
-            -skipOnboarding \
-            -debugPlatform youtube \
-            -debugURL "https://m.youtube.com/watch?v=dQw4w9WgXcQ" \
-            -debugPremium true || true
-
-          sleep 10
-
-          xcrun simctl io booted screenshot premium-1.png
-
-      # --------------------------------------------------
-      # VIDEO 2
-      # --------------------------------------------------
-
-      - name: Video 2 - Premium OFF
-        timeout-minutes: 2
-        run: |
-          xcrun simctl terminate \
-            booted \
-            com.yourcompany.SocialControl || true
-
-          sleep 2
-
-          xcrun simctl launch \
-            booted \
-            com.yourcompany.SocialControl \
-            -skipOnboarding \
-            -debugPlatform youtube \
-            -debugURL "https://m.youtube.com/watch?v=9bZkp7q19f0" \
-            -debugPremium false || true
-
-          sleep 10
-
-          xcrun simctl io booted screenshot control-2.png
-
-      - name: Video 2 - Premium ON
-        timeout-minutes: 2
-        run: |
-          xcrun simctl terminate \
-            booted \
-            com.yourcompany.SocialControl || true
-
-          sleep 2
-
-          xcrun simctl launch \
-            booted \
-            com.yourcompany.SocialControl \
-            -skipOnboarding \
-            -debugPlatform youtube \
-            -debugURL "https://m.youtube.com/watch?v=9bZkp7q19f0" \
-            -debugPremium true || true
-
-          sleep 10
-
-          xcrun simctl io booted screenshot premium-2.png
-
-      # --------------------------------------------------
-      # VIDEO 3
-      # --------------------------------------------------
-
-      - name: Video 3 - Premium OFF
-        timeout-minutes: 2
-        continue-on-error: true
-        run: |
-          xcrun simctl terminate \
-            booted \
-            com.yourcompany.SocialControl || true
-
-          sleep 2
-
-          xcrun simctl launch \
-            booted \
-            com.yourcompany.SocialControl \
-            -skipOnboarding \
-            -debugPlatform youtube \
-            -debugURL "https://m.youtube.com/watch?v=kJQP7kiw5Fk" \
-            -debugPremium false || true
-
-          sleep 10
-
-          xcrun simctl io booted screenshot control-3.png || true
-
-      - name: Video 3 - Premium ON
-        timeout-minutes: 2
-        continue-on-error: true
-        run: |
-          xcrun simctl terminate \
-            booted \
-            com.yourcompany.SocialControl || true
-
-          sleep 2
-
-          xcrun simctl launch \
-            booted \
-            com.yourcompany.SocialControl \
-            -skipOnboarding \
-            -debugPlatform youtube \
-            -debugURL "https://m.youtube.com/watch?v=kJQP7kiw5Fk" \
-            -debugPremium true || true
-
-          sleep 10
-
-          xcrun simctl io booted screenshot premium-3.png || true
+      # ==================================================
+      # SUBIR RESULTADOS
+      # ==================================================
 
       - name: Subir resultados
         if: always()
         uses: actions/upload-artifact@v4
+
         with:
           name: youtube-multi-ad-test
+
           if-no-files-found: warn
+
           path: |
             SocialControl-v0.3-CI/SocialControl-v0.3-CI/control-1.png
             SocialControl-v0.3-CI/SocialControl-v0.3-CI/premium-1.png
+
             SocialControl-v0.3-CI/SocialControl-v0.3-CI/control-2.png
             SocialControl-v0.3-CI/SocialControl-v0.3-CI/premium-2.png
+
             SocialControl-v0.3-CI/SocialControl-v0.3-CI/control-3.png
             SocialControl-v0.3-CI/SocialControl-v0.3-CI/premium-3.png
