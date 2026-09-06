@@ -1,0 +1,115 @@
+name: YouTube Ad Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  youtube-ad-test:
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    defaults:
+      run:
+        working-directory: SocialControl-v0.3-CI/SocialControl-v0.3-CI
+
+    steps:
+      - name: Descargar proyecto
+        uses: actions/checkout@v4
+
+      - name: Instalar XcodeGen
+        run: brew install xcodegen
+
+      - name: Generar proyecto
+        run: xcodegen generate
+
+      - name: Compilar
+        run: |
+          xcodebuild \
+            -project SocialControl.xcodeproj \
+            -scheme SocialControl \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            clean build
+
+      - name: Elegir y arrancar simulador
+        run: |
+          DEVICE_ID=$(xcrun simctl list devices available \
+            | grep -m 1 -E "iPhone" \
+            | grep -oE '[0-9A-F-]{36}')
+
+          echo "Simulador elegido: $DEVICE_ID"
+
+          if [ -z "$DEVICE_ID" ]; then
+            xcrun simctl list devices available
+            exit 1
+          fi
+
+          xcrun simctl boot "$DEVICE_ID" || true
+          open -a Simulator
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+
+      - name: Instalar app
+        run: |
+          APP_PATH=$(find DerivedData/Build/Products/Debug-iphonesimulator \
+            -name "SocialControl.app" \
+            | head -1)
+
+          echo "App encontrada en: $APP_PATH"
+
+          if [ -z "$APP_PATH" ]; then
+            echo "No se encontró SocialControl.app"
+            exit 1
+          fi
+
+          xcrun simctl install booted "$APP_PATH"
+
+      - name: Abrir YouTube - control
+        run: |
+          xcrun simctl launch \
+            booted \
+            com.yourcompany.SocialControl \
+            -skipOnboarding \
+            -debugPlatform youtube \
+            -debugURL https://m.youtube.com/watch?v=dQw4w9WgXcQ \
+            -debugPremium false
+
+          sleep 15
+
+          xcrun simctl io \
+            booted \
+            screenshot youtube-ad-control.png
+
+          xcrun simctl terminate \
+            booted \
+            com.yourcompany.SocialControl || true
+
+      - name: Abrir YouTube - Premium
+        run: |
+          xcrun simctl launch \
+            booted \
+            com.yourcompany.SocialControl \
+            -skipOnboarding \
+            -debugPlatform youtube \
+            -debugURL https://m.youtube.com/watch?v=dQw4w9WgXcQ \
+            -debugPremium true
+
+          sleep 15
+
+          xcrun simctl io \
+            booted \
+            screenshot youtube-ad-premium.png
+
+          xcrun simctl terminate \
+            booted \
+            com.yourcompany.SocialControl || true
+
+      - name: Subir capturas
+        uses: actions/upload-artifact@v4
+        with:
+          name: youtube-ad-test
+          path: |
+            SocialControl-v0.3-CI/SocialControl-v0.3-CI/youtube-ad-control.png
+            SocialControl-v0.3-CI/SocialControl-v0.3-CI/youtube-ad-premium.png
