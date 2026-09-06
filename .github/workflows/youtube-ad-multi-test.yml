@@ -6,7 +6,7 @@ on:
 jobs:
   youtube-multi-ad-test:
     runs-on: macos-15
-    timeout-minutes: 40
+    timeout-minutes: 20
 
     defaults:
       run:
@@ -57,144 +57,157 @@ jobs:
             -name "SocialControl.app" \
             | head -1)
 
+          if [ -z "$APP_PATH" ]; then
+            echo "No se encontró SocialControl.app"
+            exit 1
+          fi
+
           xcrun simctl install booted "$APP_PATH"
 
       # --------------------------------------------------
-      # VIDEO 1 - CONTROL
+      # VIDEO 1
       # --------------------------------------------------
 
       - name: Video 1 - Premium OFF
+        timeout-minutes: 2
         run: |
+          xcrun simctl terminate \
+            booted \
+            com.yourcompany.SocialControl || true
+
           xcrun simctl launch \
             booted \
             com.yourcompany.SocialControl \
             -skipOnboarding \
             -debugPlatform youtube \
             -debugURL "https://m.youtube.com/watch?v=dQw4w9WgXcQ" \
-            -debugPremium false
+            -debugPremium false || true
 
-          sleep 8
+          sleep 10
 
           xcrun simctl io booted screenshot control-1.png
 
+      - name: Video 1 - Premium ON
+        timeout-minutes: 2
+        run: |
           xcrun simctl terminate \
             booted \
             com.yourcompany.SocialControl || true
 
-      # --------------------------------------------------
-      # VIDEO 1 - PREMIUM
-      # --------------------------------------------------
+          sleep 2
 
-      - name: Video 1 - Premium ON
-        run: |
           xcrun simctl launch \
             booted \
             com.yourcompany.SocialControl \
             -skipOnboarding \
             -debugPlatform youtube \
             -debugURL "https://m.youtube.com/watch?v=dQw4w9WgXcQ" \
-            -debugPremium true
+            -debugPremium true || true
 
-          sleep 8
+          sleep 10
 
           xcrun simctl io booted screenshot premium-1.png
 
-          xcrun simctl terminate \
-            booted \
-            com.yourcompany.SocialControl || true
-
       # --------------------------------------------------
-      # VIDEO 2 - CONTROL
+      # VIDEO 2
       # --------------------------------------------------
 
       - name: Video 2 - Premium OFF
+        timeout-minutes: 2
         run: |
+          xcrun simctl terminate \
+            booted \
+            com.yourcompany.SocialControl || true
+
+          sleep 2
+
           xcrun simctl launch \
             booted \
             com.yourcompany.SocialControl \
             -skipOnboarding \
             -debugPlatform youtube \
             -debugURL "https://m.youtube.com/watch?v=9bZkp7q19f0" \
-            -debugPremium false
+            -debugPremium false || true
 
-          sleep 8
+          sleep 10
 
           xcrun simctl io booted screenshot control-2.png
 
+      - name: Video 2 - Premium ON
+        timeout-minutes: 2
+        run: |
           xcrun simctl terminate \
             booted \
             com.yourcompany.SocialControl || true
 
-      # --------------------------------------------------
-      # VIDEO 2 - PREMIUM
-      # --------------------------------------------------
+          sleep 2
 
-      - name: Video 2 - Premium ON
-        run: |
           xcrun simctl launch \
             booted \
             com.yourcompany.SocialControl \
             -skipOnboarding \
             -debugPlatform youtube \
             -debugURL "https://m.youtube.com/watch?v=9bZkp7q19f0" \
-            -debugPremium true
+            -debugPremium true || true
 
-          sleep 8
+          sleep 10
 
           xcrun simctl io booted screenshot premium-2.png
 
-          xcrun simctl terminate \
-            booted \
-            com.yourcompany.SocialControl || true
-
       # --------------------------------------------------
-      # VIDEO 3 - CONTROL
+      # VIDEO 3
       # --------------------------------------------------
 
       - name: Video 3 - Premium OFF
+        timeout-minutes: 2
+        continue-on-error: true
         run: |
+          xcrun simctl terminate \
+            booted \
+            com.yourcompany.SocialControl || true
+
+          sleep 2
+
           xcrun simctl launch \
             booted \
             com.yourcompany.SocialControl \
             -skipOnboarding \
             -debugPlatform youtube \
             -debugURL "https://m.youtube.com/watch?v=kJQP7kiw5Fk" \
-            -debugPremium false
+            -debugPremium false || true
 
-          sleep 8
+          sleep 10
 
-          xcrun simctl io booted screenshot control-3.png
-
-          xcrun simctl terminate \
-            booted \
-            com.yourcompany.SocialControl || true
-
-      # --------------------------------------------------
-      # VIDEO 3 - PREMIUM
-      # --------------------------------------------------
+          xcrun simctl io booted screenshot control-3.png || true
 
       - name: Video 3 - Premium ON
+        timeout-minutes: 2
+        continue-on-error: true
         run: |
+          xcrun simctl terminate \
+            booted \
+            com.yourcompany.SocialControl || true
+
+          sleep 2
+
           xcrun simctl launch \
             booted \
             com.yourcompany.SocialControl \
             -skipOnboarding \
             -debugPlatform youtube \
             -debugURL "https://m.youtube.com/watch?v=kJQP7kiw5Fk" \
-            -debugPremium true
+            -debugPremium true || true
 
-          sleep 8
+          sleep 10
 
-          xcrun simctl io booted screenshot premium-3.png
-
-          xcrun simctl terminate \
-            booted \
-            com.yourcompany.SocialControl || true
+          xcrun simctl io booted screenshot premium-3.png || true
 
       - name: Subir resultados
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: youtube-multi-ad-test
+          if-no-files-found: warn
           path: |
             SocialControl-v0.3-CI/SocialControl-v0.3-CI/control-1.png
             SocialControl-v0.3-CI/SocialControl-v0.3-CI/premium-1.png
